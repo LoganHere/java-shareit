@@ -22,7 +22,6 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public ItemDto create(long userId, ItemDto dto) {
-        checkUser(userId);
         return ItemMapper.toItemDto(itemStorage.create(ItemMapper.toItem(dto, getUser(userId))));
     }
 
@@ -64,6 +63,9 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public List<ItemDto> search(String text) {
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
         return itemStorage.searchAvailable(text).stream().map(ItemMapper::toItemDto).toList();
     }
 

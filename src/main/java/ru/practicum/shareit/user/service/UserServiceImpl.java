@@ -20,6 +20,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto create(UserDto dto) {
+        validateEmail(dto.getEmail());
         checkEmailUnique(dto.getEmail(), null);
         return UserMapper.toUserDto(userStorage.create(UserMapper.toUser(dto)));
     }
@@ -34,9 +35,7 @@ public class UserServiceImpl implements UserService {
             user.setName(dto.getName());
         }
         if (dto.getEmail() != null) {
-            if (dto.getEmail().isBlank()) {
-                throw new ValidationException("Email не должен быть пустым");
-            }
+            validateEmail(dto.getEmail());
             checkEmailUnique(dto.getEmail(), userId);
             user.setEmail(dto.getEmail());
         }
@@ -66,6 +65,12 @@ public class UserServiceImpl implements UserService {
     private void checkEmailUnique(String email, Long excludedId) {
         if (userStorage.existsByEmail(email, excludedId)) {
             throw new ConflictException("Пользователь с email " + email + " уже существует");
+        }
+    }
+
+    private void validateEmail(String email) {
+        if (email == null || email.isBlank() || !email.contains("@")) {
+            throw new ValidationException("Email должен быть непустым и содержать символ @");
         }
     }
 }
