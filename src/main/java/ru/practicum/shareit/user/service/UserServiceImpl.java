@@ -2,6 +2,7 @@ package ru.practicum.shareit.user.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
@@ -9,23 +10,26 @@ import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.dto.UpdateUserDto;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.mapper.UserMapper;
-import ru.practicum.shareit.user.storage.UserStorage;
+import ru.practicum.shareit.user.storage.UserRepository;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
-    private final UserStorage userStorage;
+    private final UserRepository userRepository;
 
     @Override
+    @Transactional
     public UserDto create(UserDto dto) {
         validateEmail(dto.getEmail());
         checkEmailUnique(dto.getEmail(), null);
-        return UserMapper.toUserDto(userStorage.create(UserMapper.toUser(dto)));
+        return UserMapper.toUserDto(userRepository.save(UserMapper.toUser(dto)));
     }
 
     @Override
+    @Transactional
     public UserDto update(long userId, UpdateUserDto dto) {
         User user = getUser(userId);
         if (dto.getName() != null) {
@@ -39,7 +43,7 @@ public class UserServiceImpl implements UserService {
             checkEmailUnique(dto.getEmail(), userId);
             user.setEmail(dto.getEmail());
         }
-        return UserMapper.toUserDto(userStorage.update(user));
+        return UserMapper.toUserDto(userRepository.save(user));
     }
 
     @Override
@@ -49,22 +53,31 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDto> getAll() {
-        return userStorage.findAll().stream().map(UserMapper::toUserDto).toList();
+        return userRepository.findAll().stream().map(UserMapper::toUserDto).toList();
     }
 
     @Override
+    @Transactional
     public void delete(long userId) {
-        userStorage.deleteById(userId);
+        userRepository.deleteById(userId);
     }
 
     private User getUser(long id) {
-        return userStorage.findById(id)
+        return userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + id + " не найден"));
     }
 
     private void checkEmailUnique(String email, Long excludedId) {
-        if (userStorage.existsByEmail(email, excludedId)) {
-            throw new ConflictException("Пользователь с email " + email + " уже существует");
+        if (userRepository.existsByEmail(email)) {
+            if (excludedId == null) {
+                throw new ConflictException("Пользователь с email " + email + " уже существует");
+            }
+            User existingUser = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail().equalsIgnoreCase(email))
+                    .findFirst().orElse(null);
+            if (existingUser != null && !existingUser.getId().equals(excludedId)) {
+                throw new ConflictException("Пользователь с email " + email + " уже существует");
+            }
         }
     }
 
