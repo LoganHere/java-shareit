@@ -21,7 +21,9 @@ import ru.practicum.shareit.user.storage.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -80,20 +82,38 @@ public class ItemServiceImpl implements ItemService {
     public List<ItemDto> getByOwner(long userId) {
         checkUser(userId);
         List<Item> items = itemRepository.findByOwnerId(userId);
+
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         LocalDateTime now = LocalDateTime.now();
+
+        Map<Long, List<Booking>> bookingsByItemId = bookingRepository.findAllByItemIn(items).stream()
+                .collect(Collectors.groupingBy(b -> b.getItem().getId()));
+
+        Map<Long, List<Comment>> commentsByItemId = commentRepository.findAllByItemIn(items).stream()
+                .collect(Collectors.groupingBy(c -> c.getItem().getId()));
 
         return items.stream().map(item -> {
             ItemDto dto = ItemMapper.toItemDto(item);
-            List<Booking> lastBookings = bookingRepository.findLastBooking(item.getId(), now);
-            if (!lastBookings.isEmpty()) {
-                dto.setLastBooking(lastBookings.get(0).getStart());
-            }
-            List<Booking> nextBookings = bookingRepository.findNextBooking(item.getId(), now);
-            if (!nextBookings.isEmpty()) {
-                dto.setNextBooking(nextBookings.get(0).getStart());
-            }
-            dto.setComments(commentRepository.findByItemId(item.getId()).stream()
-                    .map(CommentMapper::toCommentDto).toList());
+
+            List<Booking> bookings = bookingsByItemId.getOrDefault(item.getId(), Collections.emptyList());
+
+            bookings.stream()
+                    .filter(b -> b.getStart().isBefore(now))
+                    .max(Comparator.comparing(Booking::getStart))
+                    .ifPresent(b -> dto.setLastBooking(b.getStart()));
+
+            bookings.stream()
+                    .filter(b -> b.getStart().isAfter(now))
+                    .min(Comparator.comparing(Booking::getStart))
+                    .ifPresent(b -> dto.setNextBooking(b.getStart()));
+
+            dto.setComments(commentsByItemId.getOrDefault(item.getId(), Collections.emptyList()).stream()
+                    .map(CommentMapper::toCommentDto)
+                    .toList());
+
             return dto;
         }).collect(Collectors.toList());
     }
@@ -112,18 +132,13 @@ public class ItemServiceImpl implements ItemService {
         User author = getUser(userId);
         Item item = getItem(itemId);
 
-        List<Booking> completedBookings = bookingRepository.findCompletedBookingsForUserAndItem(itemId, userId, LocalDateTime.now());
+        List<Booking> completedBookings = bookingRepository
+                .findCompletedBookingsForUserAndItem(itemId, userId, LocalDateTime.now());
         if (completedBookings.isEmpty()) {
             throw new ValidationException("Пользователь не брал эту вещь в аренду или срок аренды не завершён");
         }
 
-        Comment comment = Comment.builder()
-                .text(dto.getText())
-                .item(item)
-                .author(author)
-                .created(LocalDateTime.now())
-                .build();
-
+        Comment comment = CommentMapper.toComment(dto, item, author);
         return CommentMapper.toCommentDto(commentRepository.save(comment));
     }
 
