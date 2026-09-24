@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import ru.practicum.shareit.IntegrationTestBase;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.user.dto.UpdateUserDto;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.service.UserService;
@@ -31,10 +32,65 @@ class UserServiceImplIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void createWithInvalidEmail() {
+        assertThatThrownBy(() -> userService.create(UserDto.builder().name("Ivan").email("invalid").build()))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void createWithBlankEmail() {
+        assertThatThrownBy(() -> userService.create(UserDto.builder().name("Ivan").email("   ").build()))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
     void updateName() {
         UserDto created = userService.create(UserDto.builder().name("Ivan").email("upd@mail.ru").build());
         UserDto updated = userService.update(created.getId(), UpdateUserDto.builder().name("Petr").build());
         assertThat(updated.getName()).isEqualTo("Petr");
+    }
+
+    @Test
+    void updateEmail() {
+        UserDto created = userService.create(UserDto.builder().name("Ivan").email("upd2@mail.ru").build());
+        UserDto updated = userService.update(created.getId(), UpdateUserDto.builder().email("new@mail.ru").build());
+        assertThat(updated.getEmail()).isEqualTo("new@mail.ru");
+    }
+
+    @Test
+    void updateEmailToSame() {
+        UserDto created = userService.create(UserDto.builder().name("Ivan").email("same@mail.ru").build());
+        UserDto updated = userService.update(created.getId(), UpdateUserDto.builder().email("same@mail.ru").build());
+        assertThat(updated.getEmail()).isEqualTo("same@mail.ru");
+    }
+
+    @Test
+    void updateWithDuplicateEmail() {
+        userService.create(UserDto.builder().name("A").email("a1@mail.ru").build());
+        UserDto b = userService.create(UserDto.builder().name("B").email("b1@mail.ru").build());
+
+        assertThatThrownBy(() -> userService.update(b.getId(), UpdateUserDto.builder().email("a1@mail.ru").build()))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void updateWithBlankName() {
+        UserDto created = userService.create(UserDto.builder().name("Ivan").email("blankname@mail.ru").build());
+        assertThatThrownBy(() -> userService.update(created.getId(), UpdateUserDto.builder().name("   ").build()))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void updateWithInvalidEmail() {
+        UserDto created = userService.create(UserDto.builder().name("Ivan").email("inved@mail.ru").build());
+        assertThatThrownBy(() -> userService.update(created.getId(), UpdateUserDto.builder().email("bad").build()))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void getByIdNotFound() {
+        assertThatThrownBy(() -> userService.getById(999999L))
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test
@@ -47,8 +103,8 @@ class UserServiceImplIntegrationTest extends IntegrationTestBase {
 
     @Test
     void getAll() {
-        userService.create(UserDto.builder().name("A").email("a@mail.ru").build());
-        userService.create(UserDto.builder().name("B").email("b@mail.ru").build());
+        userService.create(UserDto.builder().name("A").email("ga@mail.ru").build());
+        userService.create(UserDto.builder().name("B").email("gb@mail.ru").build());
         assertThat(userService.getAll()).hasSize(2);
     }
 }
