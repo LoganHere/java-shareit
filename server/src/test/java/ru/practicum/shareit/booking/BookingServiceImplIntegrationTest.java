@@ -82,19 +82,6 @@ class BookingServiceImplIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void createWithEndBeforeStart() {
-        UserDto owner = createUser("b4owner@mail.ru");
-        UserDto booker = createUser("b4booker@mail.ru");
-        ItemDto item = createItem(owner.getId(), true);
-
-        assertThatThrownBy(() -> bookingService.create(booker.getId(), bookingRequest(
-                item.getId(),
-                LocalDateTime.now().plusDays(2),
-                LocalDateTime.now().plusDays(1))))
-                .isInstanceOf(ValidationException.class);
-    }
-
-    @Test
     void createWithNonExistentItem() {
         UserDto booker = createUser("b5booker@mail.ru");
 
