@@ -42,9 +42,6 @@ public class BookingServiceImpl implements BookingService {
         if (item.getOwner().getId().equals(userId)) {
             throw new ValidationException("Владелец не может бронировать свою вещь");
         }
-        if (dto.getEnd().isBefore(dto.getStart())) {
-            throw new ValidationException("Дата окончания не может быть раньше даты начала");
-        }
 
         Booking booking = BookingMapper.toBooking(dto, item, booker);
         return BookingMapper.toBookingDto(bookingRepository.save(booking));
